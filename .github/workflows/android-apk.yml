@@ -1,16 +1,10 @@
 name: Build Vinalayan APK
 
 on:
+  # Assinatura de produção exige os segredos do Vinalayan (keystore e Firebase).
+  # Este fork não os tem. O workflow fica manual para não ficar vermelho em todo push.
+  # Os APKs instaláveis do laboratório saem de bancada-ci.yml.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'app/**'
-      - 'gradle/**'
-      - '*.gradle.kts'
-      - 'gradle.properties'
-      - 'gradlew*'
-      - '.github/workflows/android-apk.yml'
 
 permissions:
   contents: read

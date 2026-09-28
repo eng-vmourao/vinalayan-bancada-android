@@ -1,0 +1,82 @@
+name: Bancada CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bancada-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - name: Install Android SDK packages
+        run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0' 'platform-tools'
+      - name: Prove the motorcycle source files were not edited
+        run: |
+          base=1f4c49b9f2600763724eb903208edb6d0d597529
+          git diff --exit-code "$base" -- \
+            app/src/main/java/com/example/opendash/dash/protocol \
+            app/src/main/java/com/example/opendash/dash/video \
+            app/src/main/java/com/example/opendash/dash/DashAuth.kt \
+            app/src/main/java/com/example/opendash/dash/DashConfig.kt \
+            app/src/main/java/com/example/opendash/dash/DashWifiManager.kt \
+            app/src/main/java/com/example/opendash/dash/DashKeepAliveService.kt
+          mkdir -p dist
+          git diff "$base" -- app/build.gradle.kts app/src/main/java/com/example/opendash/dash/DashSocket.kt app/src/main/java/com/example/opendash/dash/DashSession.kt app/src/main/java/com/example/opendash/viewmodel/DashViewModel.kt app/src/main/java/com/example/opendash/ui/screens/DashScreen.kt > dist/DIFF_LAB.txt
+      - name: Unit tests
+        run: |
+          bash ./gradlew :dash-protocol:test --no-daemon --stacktrace
+          bash ./gradlew :app:testLocalReleaseUnitTest :app:testLabReleaseUnitTest --tests com.example.opendash.dash.LabModeContractTest --no-daemon --stacktrace
+      - name: Build lab and panel release APKs
+        run: |
+          bash ./gradlew :bancada:assembleRelease --no-daemon --max-workers=2
+          bash ./gradlew :app:assembleLabRelease --no-daemon --max-workers=2
+      - name: Collect signed APKs
+        run: |
+          mkdir -p dist
+          panel=bancada/build/outputs/apk/release/bancada-release.apk
+          lab=$(ls app/build/outputs/apk/lab/release/*universal*release.apk | head -1)
+          test -f "$panel"
+          test -n "$lab"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$panel"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$lab"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$panel" | grep "package: name='com.vinalayan.bancada'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$lab" | grep "package: name='com.vinalayan.lab'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$lab" | grep "application-label:'Vinalayan Lab'"
+          cp "$panel" dist/Bancada-painel.apk
+          cp "$lab" dist/Vinalayan-lab.apk
+          cd dist && sha256sum *.apk > SHA256SUMS.txt
+      - name: Upload APKs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bancada-apks
+          path: dist/
+          if-no-files-found: error
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="bancada-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Bancada Android $tag" \
+            --latest \
+            --notes "APKs assinados com a chave pública de laboratório (alias bancada, senha bancada-lab). Não é a chave de release da moto. O Vinalayan original não foi alterado. Testes: :dash-protocol:test e LabModeContractTest nos flavors localRelease e labRelease."

@@ -1,105 +1,65 @@
-# Vinalayan
+# Bancada Vinalayan para Android
 
-Aplicativo Android pessoal de Vinícius para sua Himalayan, baseado no [OpenDash](https://github.com/subtlesayak/open-dash). Reúne veículos, manutenção, abastecimentos, despesas e visualização de rotas.
+Painel Tripper simulado e flavor de laboratório do [Vinalayan](https://github.com/eng-vmourao/Vinalayan), para testar o app sem a Himalayan. O repositório original não é alterado. O texto do Vinalayan de origem está em [docs/README_VINALAYAN.md](docs/README_VINALAYAN.md).
 
-Esta versão adota o nome Vinalayan. O histórico, a licença e os créditos do projeto original estão preservados. A prévia 0.1.5 para Android traz suporte a rotas do Waze, velocidade permitida da via, cronômetro de semáforo, voz FULL por padrão e conexão com a Tripper Dash.
+Dois APKs saem do workflow [bancada-ci.yml](.github/workflows/bancada-ci.yml), na Release `bancada-<número do run>`:
 
-## Upstream project notice
+| APK | Pacote | Função |
+|---|---|---|
+| `Bancada-painel.apk` | `com.vinalayan.bancada` | O painel da direita. Escuta UDP 2000 (controle) e 5000 (vídeo). |
+| `Vinalayan-lab.apk` | `com.vinalayan.lab` | O celular da esquerda, com endereço configurável e sem exigir a rede `RE_`. |
 
-> [!WARNING]
-> Royal Enfield contacted the OpenDash project, and the upstream public branch later removed dash connection and projection code. Vinalayan restores the implementation already present in this repository's history as an experimental, rider-controlled feature. Compatibility still depends on the Tripper Dash firmware and must be checked on the motorcycle.
+Os dois são assinados com a chave pública de laboratório em `lab-signing/lab.p12` (alias `bancada`, senha `bancada-lab`). Não é a chave de release da moto. O Android vai avisar que o pacote não veio da Play Store. Android 7.0 ou mais novo. O APK do painel e o do Vinalayan Lab saem do build type `release`, mas o flavor `lab` desliga o R8 — o shrink continua só em `local`, `play` e `mapboxTest`.
 
-## Overview
+O flavor `local` (e `play` / `mapboxTest`) continua com `LAB_MODE` falso e com os endereços da moto: `192.168.1.1`, broadcast `192.168.1.255`, portas 2000, 2002 e 5000. O workflow confere com `git diff` que `dash/protocol`, `dash/video`, `DashAuth.kt`, `DashConfig.kt`, `DashWifiManager.kt` e `DashKeepAliveService.kt` não mudaram em relação a `1f4c49b`. O diff do que o laboratório mudou vai junto na Release, em `DIFF_LAB.txt`.
 
-Vinalayan is an open-source Android app for motorcycle ownership, trip preparation, route preview, and Tripper Dash projection, based on OpenDash.
+## Instalar pelo celular
 
-## Current Focus
+1. Abra a Release mais recente deste repositório no GitHub, no navegador do aparelho.
+2. Baixe `Bancada-painel.apk` e `Vinalayan-lab.apk`.
+3. Abra cada arquivo e confirme a instalação. Se o Android bloquear, permita a instalação por esse navegador ou gerenciador de arquivos.
+4. Não é preciso digitar a senha da chave. Ela só serve para quem for verificar a assinatura.
 
-- Route preview from shared map links or `geo:` links.
-- Vehicle profiles with odometer, PUC, insurance, and service details.
-- Garage and maintenance tracking for parts, service intervals, and service history.
-- Expense tracking for fuel, repairs, accessories, riding gear, food, stays, transport, and other ownership costs.
-- Downloadable wallpaper pack in Settings.
-- Material 3 UI themes.
-- Local-first storage, with optional bring-your-own Firebase/Google sync where configured.
-- Home connection menu with live Tripper status.
-- Wi-Fi discovery and pairing for Tripper networks beginning with `RE_`.
-- Dash authentication, route projection, joystick controls, media/call cards, and wallpaper playback.
+## Um aparelho
 
-## Install
+O painel ocupa as portas 2000 e 5000. O Vinalayan Lab, neste modo, envia o controle por uma porta efêmera para `127.0.0.1:2000` e continua escutando a resposta na 2002. Isso evita os dois processos brigarem pelo bind na 2000.
 
-Baixe **Vinalayan-0.1.5-preview-universal.apk** na [página de versões](https://github.com/eng-vmourao/Vinalayan/releases), abra o arquivo no Android e permita a instalação quando solicitado. Nas próximas versões, use **More → Update from GitHub → Check** para baixar e validar a atualização pelo aplicativo. O app requer Android 7.0 ou posterior; a conexão com a Tripper requer Android 10 ou posterior.
+1. Abra **Bancada Himalayan** e deixe na aba Painel. A ignição precisa estar ligada (é o padrão).
+2. Abra **Vinalayan Lab**. No topo da tela Dash, escolha **Um aparelho**. O SSID pode ficar `LAB_DASH`.
+3. Toque em conectar, se o app não conectar sozinho. A rede `RE_` não é pedida.
+4. Use tela dividida ou o botão **PiP** do painel para ver os dois.
+5. Quando a autenticação fecha, o Vinalayan entra em projeção sozinho (`DashState.READY` chama `startStream`). O diagnóstico do painel deve ir de aguardando para autenticado e depois projetando. O vídeo, se o encoder do celular produzir quadros, aparece no modo Digital.
 
-A prévia é validada com testes unitários, Android Lint, verificações de assinatura e instalação/abertura do menu de conexão e das cinco abas em emulador Android 15. A conexão e a projeção precisam ser validadas com uma Tripper Dash real. Veja o [guia completo de instalação e atualização](docs/APK.md).
+Este modo **não foi executado num celular** neste trabalho. O que passou foi o teste JVM `fakePhoneAuthenticatesAndSendsVideo`, no Linux, com sockets em `127.0.0.1`.
 
-## First Use
+## Dois aparelhos
 
-1. Open Vinalayan.
-2. On **Home**, tap **Connect to dash** while the motorcycle and Tripper Dash are on.
-3. Accept the Android Wi-Fi and nearby-device permissions, then select the `RE_*` network shown by the bike.
-4. Add your motorcycle in **Vehicles** and use **Garage** and **Expenses** for its records.
-5. Share a destination or `geo:` link into Vinalayan, then choose **Send to Tripper Dash**.
-6. Use **More** for account, sync, appearance, map provider, and updates.
+Os dois na mesma Wi-Fi ou no mesmo hotspot. O painel mostra o IPv4 dele na tela inicial.
 
-## Main Tabs
+1. No aparelho do painel, abra **Bancada Himalayan**.
+2. No aparelho do Vinalayan Lab, escolha **Dois aparelhos** e digite esse IP. O SSID pode ficar `LAB_DASH`.
+3. Conecte. O lab envia unicast para esse IP na porta 2000 (não para `192.168.1.255`, porque o hotspot do Android não é a rede da moto).
 
-| Tab | What it does |
-| --- | --- |
-| Home | Tripper status, connection menu, navigation, saved destinations, and rides |
-| Vehicles | Add/edit vehicles and choose the active vehicle |
-| Expenses | Add, filter, review, and export expenses |
-| Garage | Odometer, mileage, spare parts, and service logging |
-| More | Account, sync, themes, navigation provider, units, help, and wallpaper downloads |
+Este modo **também não foi executado**. Nenhum dos dois modos foi o que "funcionou no aparelho": o único enlace comprovado é o teste de protocolo no CI/JVM.
 
-Route preview opens from shared destinations and saved locations instead of being a permanent bottom tab.
+## Spotify
 
-## Build From Source
+O teste real pedido é o Spotify oficial. Ele **não rodou** aqui.
 
-```bash
-git clone https://github.com/eng-vmourao/Vinalayan.git
-cd Vinalayan
-./gradlew :app:assembleLocalDebug
-```
+Para tentar no celular: dê ao Vinalayan Lab o acesso de leitura de notificações, deixe uma faixa tocando e espere o painel chegar em projetando. Título e artista só são enviados em `DashState.STREAMING` (`DashSession.kt`, `launchMediaInfo`). Play, pausa e volume não têm byte no `DashViewModel` — está em [FALHAS_VINALAYAN.md](FALHAS_VINALAYAN.md), e o painel não finge esses comandos.
 
-Windows PowerShell:
+## O que o painel desenha
 
-```powershell
-.\gradlew.bat :app:assembleLocalDebug
-```
+Lista completa, com o que é aproximado ou ausente: [CHECKLIST_TELAS.md](CHECKLIST_TELAS.md). O desenho é novo, a partir dos manuais da família Tripper, não uma foto da Himalayan 450 Brasil 2025. Não achei o PDF do manual brasileiro.
 
-Run local unit tests:
+Firmware: o `CLAUDE.md` do autor original fala em 11.63. Um vídeo da moto foi lido, de forma aproximada, como REICVIS1162. **Os bytes implementados são os do código Vinalayan, não os de um desses rótulos.** Falta a escolha de qual firmware a bancada deve mirar.
 
-```bash
-./gradlew :app:testLocalDebugUnitTest
-```
+Protocolo, com arquivo e linha: [docs/PROTOCOLO.md](docs/PROTOCOLO.md).
 
-The [APK guide](docs/APK.md) explains GitHub Actions builds, installation, signing, and updates. Release signing uses your own keystore through Gradle properties or CI secrets. Never commit keys, APKs, logs, `local.properties`, `key.properties`, `google-services.json`, keystores, tokens, or other private files.
+## O que foi testado, e o que não foi
 
-## Release Variants
+- Testado em JVM, neste ambiente: `:dash-protocol:test` (7 testes: hex de auth, sequência K1G, hostname, now playing, projeção, RTP FU-A, e um telefone falso que autentica e manda um quadro).
+- O CI, quando o workflow verde existir, roda esses testes e também `LabModeContractTest` nos variants `localRelease` e `labRelease`, monta os dois APKs e publica a Release. O link do run só vale depois que o GitHub Actions terminar — não antes.
+- Não testado: instalação no Android, um aparelho, dois aparelhos, MediaCodec com vídeo de verdade, Spotify, a moto.
 
-- `localRelease` builds signed APKs for GitHub releases with application id `com.vinalayan.app`.
-- `playRelease` retains the optional Google Play bundle configuration with application id `com.vinalayan.app`; it requires its own service configuration before publication.
-- The preview APK uses local storage and open map/route providers. Firebase sync and Mapbox are optional and require your own configuration.
-
-## Privacy
-
-- App data is local-first.
-- Expense exports are created locally and shared only when you choose to share them.
-- Firebase/Google sync is optional and bring-your-own-project.
-- Release builds should avoid logging full URLs, coordinates, account IDs, or device identifiers.
-- Tripper Wi-Fi credentials are stored locally with Android encrypted preferences when available.
-
-## Contributing
-
-Issues and pull requests are welcome for routes, Tripper compatibility, vehicles, garage, maintenance, expenses, sync, themes, and wallpapers.
-
-Please remove personal data from logs and screenshots before sharing: coordinates, SSIDs, account IDs, tokens, and device identifiers.
-
-## License
-
-Vinalayan is based on OpenDash and distributed under the terms in [`LICENSE`](LICENSE). Original attribution is preserved in [`NOTICE`](NOTICE).
-
-## References
-
-- [norbertFeron/better-dash](https://github.com/norbertFeron/better-dash) - Early motivation
-- [adityadasika21/NorthStar](https://github.com/adityadasika21/NorthStar) - Original app base
+O workflow de APK de produção (`android-apk.yml`) ficou só manual. Ele precisa dos segredos de keystore e Firebase, que este fork não tem.
