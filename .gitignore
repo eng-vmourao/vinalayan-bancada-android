@@ -11,6 +11,7 @@
 .DS_Store
 .claude/settings.local.json
 /build
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -31,6 +32,7 @@ app/google-services.json
 *.jks
 *.keystore
 *.p12
+!lab-signing/lab.p12
 *.pfx
 *.log
 firebase-debug.log

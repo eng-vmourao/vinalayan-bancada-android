@@ -47,3 +47,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Vinalayan"
 include(":app")
+include(":dash-protocol")
+include(":bancada")
