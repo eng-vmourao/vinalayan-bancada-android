@@ -22,7 +22,10 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Every control packet gets the rolling K1G seq byte patched on send.
  */
-class DashSocket(private val network: android.net.Network? = null) : AutoCloseable {
+class DashSocket(
+    private val network: android.net.Network? = null,
+    private val endpoints: DashEndpoints = DashEndpoints.PRODUCTION,
+) : AutoCloseable {
     companion object {
         const val DASH_IP    = "192.168.1.1"
         const val BROADCAST  = "192.168.1.255"
@@ -34,8 +37,9 @@ class DashSocket(private val network: android.net.Network? = null) : AutoCloseab
         private const val TAG             = "DashSocket"
     }
 
-    private val broadcastAddr: InetAddress = InetAddress.getByName(BROADCAST)
-    private val dashAddr:      InetAddress = InetAddress.getByName(DASH_IP)
+    private val broadcastAddr: InetAddress = InetAddress.getByName(endpoints.broadcast)
+    private val dashAddr:      InetAddress = InetAddress.getByName(endpoints.dashIp)
+    private val controlAddr: InetAddress = if (endpoints.unicastControl) dashAddr else broadcastAddr
     private val txSocket:  DatagramSocket
     private val rxSocket:  DatagramSocket
     private val rtpSocket: DatagramSocket
@@ -50,17 +54,23 @@ class DashSocket(private val network: android.net.Network? = null) : AutoCloseab
             tx = DatagramSocket(null).also {
                 it.reuseAddress = true
                 it.broadcast = true
-                it.bind(InetSocketAddress(CTRL_PORT))
+                it.bind(InetSocketAddress(endpoints.txBindPort))
                 network?.bindSocket(it)
             }
             rx = DatagramSocket(null).also {
                 it.reuseAddress = true
                 it.soTimeout = RECV_TIMEOUT_MS
-                it.bind(InetSocketAddress(RX_PORT))
+                it.bind(InetSocketAddress(endpoints.rxPort))
                 network?.bindSocket(it)
             }
             rtp = DatagramSocket().also { network?.bindSocket(it) }
-            DebugLog.i(TAG) { "Sockets open — TX :$CTRL_PORT→$BROADCAST:$CTRL_PORT (broadcast), RX :$RX_PORT, RTP→$DASH_IP:$RTP_PORT" }
+            if (endpoints == DashEndpoints.PRODUCTION) {
+                DebugLog.i(TAG) { "Sockets open — TX :$CTRL_PORT→$BROADCAST:$CTRL_PORT (broadcast), RX :$RX_PORT, RTP→$DASH_IP:$RTP_PORT" }
+            } else {
+                DebugLog.i(TAG) {
+                    "Sockets open LAB — TX bind :${endpoints.txBindPort} → ${controlAddr.hostAddress}:${endpoints.ctrlPort}, RX :${endpoints.rxPort}, RTP→${endpoints.dashIp}:${endpoints.rtpPort}"
+                }
+            }
             txSocket  = tx
             rxSocket  = rx
             rtpSocket = rtp
@@ -73,11 +83,11 @@ class DashSocket(private val network: android.net.Network? = null) : AutoCloseab
     /** Send a K1G control packet (seq patched here, like K1GTx in the reference). */
     fun send(data: ByteArray) {
         val pkt = K1GPacket.patchSeq(data, seq.getAndIncrement())
-        DebugLog.d(TAG) { "TX →$BROADCAST:$CTRL_PORT  ${pkt.size}B  ${pkt.hex()}" }
+        DebugLog.d(TAG) { "TX →${controlAddr.hostAddress}:${endpoints.ctrlPort}  ${pkt.size}B  ${pkt.hex()}" }
         // UDP fire-and-forget: a dropped/unreachable link (ENETUNREACH, EBADF) must never
         // crash the app — the session will fail and reconnect.
         try {
-            txSocket.send(DatagramPacket(pkt, pkt.size, broadcastAddr, CTRL_PORT))
+            txSocket.send(DatagramPacket(pkt, pkt.size, controlAddr, endpoints.ctrlPort))
         } catch (e: Exception) {
             DebugLog.w(TAG) { "TX send failed (link down?): ${e.message}" }
         }
@@ -85,7 +95,7 @@ class DashSocket(private val network: android.net.Network? = null) : AutoCloseab
 
     fun sendRtp(data: ByteArray) {
         try {
-            rtpSocket.send(DatagramPacket(data, data.size, dashAddr, RTP_PORT))
+            rtpSocket.send(DatagramPacket(data, data.size, dashAddr, endpoints.rtpPort))
         } catch (e: Exception) {
             DebugLog.d(TAG) { "RTP send failed (link down?): ${e.message}" }
         }

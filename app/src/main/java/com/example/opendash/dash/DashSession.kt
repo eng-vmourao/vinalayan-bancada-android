@@ -109,10 +109,14 @@ class DashSession(private val scope: CoroutineScope) {
 
     // ── Public API ────────────────────────────────────────────────────────
 
-    fun connect(ssid: String, network: android.net.Network? = null) {
+    fun connect(
+        ssid: String,
+        network: android.net.Network? = null,
+        endpoints: DashEndpoints = DashEndpoints.PRODUCTION,
+    ) {
         if (_state.value != DashState.IDLE && _state.value != DashState.ERROR) return
-        DebugLog.i(TAG) { "connect() — ssid='$ssid' network=$network" }
-        sessionJob = scope.launch(Dispatchers.IO) { runSession(ssid, network) }
+        DebugLog.i(TAG) { "connect() — ssid='$ssid' network=$network lab=${endpoints != DashEndpoints.PRODUCTION}" }
+        sessionJob = scope.launch(Dispatchers.IO) { runSession(ssid, network, endpoints) }
     }
 
     fun startStreaming() {
@@ -169,11 +173,15 @@ class DashSession(private val scope: CoroutineScope) {
 
     // ── Internal ──────────────────────────────────────────────────────────
 
-    private suspend fun runSession(ssid: String, network: android.net.Network? = null) {
+    private suspend fun runSession(
+        ssid: String,
+        network: android.net.Network? = null,
+        endpoints: DashEndpoints = DashEndpoints.PRODUCTION,
+    ) {
         try {
             _state.value = DashState.CONNECTING
             val sock = try {
-                DashSocket(network).also { socket = it }
+                DashSocket(network, endpoints).also { socket = it }
             } catch (e: java.net.BindException) {
                 fail("Port ${DashSocket.RX_PORT}/${DashSocket.CTRL_PORT} in use (${e.message})")
                 return

@@ -105,6 +105,7 @@ android {
         buildConfigField("boolean", "CRASHLYTICS_ENABLED", "false")
         buildConfigField("boolean", "USE_MAPBOX_NAVIGATION", useMapboxNavigation.toString())
         buildConfigField("boolean", "USE_MAPBOX_NAVIGATION_EXPERIMENTAL", useMapboxNavigation.toString())
+        buildConfigField("boolean", "LAB_MODE", "false")
         buildConfigField(
             "String",
             "MAPBOX_ACCESS_TOKEN",
@@ -139,6 +140,14 @@ android {
             buildConfigField("boolean", "USE_MAPBOX_NAVIGATION", "true")
             buildConfigField("boolean", "USE_MAPBOX_NAVIGATION_EXPERIMENTAL", "true")
         }
+        create("lab") {
+            dimension = "distribution"
+            applicationId = "com.vinalayan.lab"
+            versionName = "0.1.5-preview-lab"
+            buildConfigField("boolean", "LAB_MODE", "true")
+            buildConfigField("boolean", "CRASHLYTICS_ENABLED", "false")
+            resValue("string", "app_name", "Vinalayan Lab")
+        }
     }
 
     val releaseStoreFilePath = providers.gradleProperty("OPENDASH_RELEASE_STORE_FILE").orNull
@@ -168,6 +177,15 @@ android {
                 keyPassword = releaseKeyPassword
             }
         }
+        create("labSideload") {
+            val labStore = rootProject.file("lab-signing/lab.p12")
+            if (labStore.isFile) {
+                storeFile = labStore
+                storePassword = "bancada-lab"
+                keyAlias = "bancada"
+                keyPassword = "bancada-lab"
+            }
+        }
     }
 
     buildTypes {
@@ -194,6 +212,7 @@ android {
             if (hasReleaseKeystore) signingConfig = signingConfigs.getByName("release")
         }
     }
+    productFlavors.getByName("lab").signingConfig = signingConfigs.getByName("labSideload")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -221,6 +240,13 @@ androidComponents {
     // AGP 9 only enables debug unit tests by default; CI validates the release variant.
     beforeVariants(selector().withBuildType("release")) { variant ->
         variant.hostTests.getValue(com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE).enable = true
+    }
+    // Lab is a sideload build. R8 stays on for local/play/mapboxTest release.
+    // Turning it off here keeps the motorcycle flavors unchanged and lets this
+    // 4 GB environment (and CI) package the lab APK without the production shrink.
+    beforeVariants(selector().withFlavor("distribution" to "lab")) { variant ->
+        variant.isMinifyEnabled = false
+        variant.shrinkResources = false
     }
     onVariants { variant ->
         val variantApplicationId = variant.applicationId.get()

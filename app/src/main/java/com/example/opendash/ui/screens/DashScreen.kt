@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.opendash.BuildConfig
 import com.example.opendash.ui.OpenDashIcons
 import com.example.opendash.ui.components.*
 import com.example.opendash.ui.theme.*
@@ -57,7 +58,7 @@ fun DashScreen(vm: DashViewModel = viewModel()) {
         }.toTypedArray()
     }
 
-    fun hasEssentialPermissions() = essentialPermissions.all {
+    fun hasEssentialPermissions() = BuildConfig.LAB_MODE || essentialPermissions.all {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 
@@ -118,6 +119,7 @@ fun DashScreen(vm: DashViewModel = viewModel()) {
             .padding(18.dp)
             .padding(bottom = 24.dp),
     ) {
+        LabEndpointCard()
         ScreenHeader(
             eyebrow = "What the rider sees",
             title = "Dash view",

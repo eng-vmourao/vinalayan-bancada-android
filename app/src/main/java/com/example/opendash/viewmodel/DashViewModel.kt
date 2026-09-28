@@ -13,7 +13,9 @@ import com.example.opendash.data.DashWallpaperFit
 import com.example.opendash.data.DashWallpaperKind
 import com.example.opendash.data.DashWallpaperInfo
 import com.example.opendash.data.DashWallpaperStore
+import com.example.opendash.BuildConfig
 import com.example.opendash.dash.DashKeepAliveService
+import com.example.opendash.dash.LabEndpointStore
 import com.example.opendash.dash.DashSession
 import com.example.opendash.dash.DashState
 import com.example.opendash.dash.DashWifiManager
@@ -311,6 +313,10 @@ class DashViewModel(app: Application) : AndroidViewModel(app) {
     // ── Connection ─────────────────────────────────────────────────────────
 
     fun connect() {
+        if (BuildConfig.LAB_MODE) {
+            connectLab()
+            return
+        }
         userWantsConnection = true
         _ui.value = _ui.value.copy(errorMessage = null)
         DashKeepAliveService.start(getApplication())
@@ -338,6 +344,16 @@ class DashViewModel(app: Application) : AndroidViewModel(app) {
             else ->
                 wifiManager.connect(dashConfig.ssidPrefix, dashConfig.password, prefixMatch = true)
         }
+    }
+
+    /** Lab flavor only. Does not join an RE_ network and does not touch the production connect() path. */
+    private fun connectLab() {
+        userWantsConnection = true
+        _ui.value = _ui.value.copy(errorMessage = null)
+        DashKeepAliveService.start(getApplication())
+        val lab = LabEndpointStore.read(getApplication())
+        _ui.value = _ui.value.copy(ssid = lab.ssid)
+        session.connect(lab.ssid, null, lab.endpoints())
     }
 
     fun disconnect() {
