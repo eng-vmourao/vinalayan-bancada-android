@@ -37,3 +37,15 @@ de um build 0.1.5, não acha o arquivo. Este fork não executou esse workflow.
 Dois processos no mesmo aparelho não podem os dois escutar a 2000.
 O flavor `lab` contorna isso sem mudar esses constantes. O flavor `local`
 continua igual, coberto por `LabModeContractTest`.
+
+## 5. O workflow de APK pede o pacote SDK `tools`, que o Google tirou do ar
+
+O pin `android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407`
+instala `tools` por padrão. Em 28 de setembro de 2026 o `sdkmanager` responde
+`Failed to find package 'tools'` e o job morre em cerca de 10 s. O run que
+mostrou isso neste fork é
+<https://github.com/eng-vmourao/vinalayan-bancada-android/actions/runs/36400444976>.
+
+O contorno usado aqui, só no YAML, é `packages: platform-tools`. O código do
+app não mudou por causa disso.
+

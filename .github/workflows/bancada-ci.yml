@@ -27,6 +27,9 @@ jobs:
           java-version: '21'
           cache: gradle
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          # The v3 default still asks for the removed SDK package "tools".
+          packages: 'platform-tools'
       - name: Install Android SDK packages
         run: sdkmanager 'platforms;android-36.1' 'build-tools;36.0.0' 'platform-tools'
       - name: Prove the motorcycle source files were not edited
