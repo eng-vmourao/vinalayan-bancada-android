@@ -143,6 +143,7 @@ android {
         create("lab") {
             dimension = "distribution"
             applicationId = "com.vinalayan.lab"
+            versionCode = 2
             versionName = "0.1.5-preview-lab"
             buildConfigField("boolean", "LAB_MODE", "true")
             buildConfigField("boolean", "CRASHLYTICS_ENABLED", "false")

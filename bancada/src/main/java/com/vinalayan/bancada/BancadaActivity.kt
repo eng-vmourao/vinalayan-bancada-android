@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.SurfaceTexture
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Rational
 import android.view.Surface
 import android.view.TextureView
@@ -27,7 +29,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -63,16 +67,26 @@ class BancadaViewModel : ViewModel() {
     val logText = mutableStateOf("")
     val bike = mutableStateOf(BikeSim())
     val page = mutableStateOf(ClusterPage.ANALOG)
+    val bootError = mutableStateOf<String?>(null)
     private val timer = Timer("bancada-ui", true)
+    private val main = Handler(Looper.getMainLooper())
 
     init {
         engine.onAccessUnit = { nal, marker -> decoder.onNal(nal, marker) }
-        engine.onState = { snap.value = it }
-        engine.start()
+        engine.onState = { next -> main.post { snap.value = next } }
+        try {
+            engine.start()
+        } catch (t: Throwable) {
+            bootError.value = t.stackTraceToString()
+        }
         timer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
-                snap.value = engine.snapshot()
-                logText.value = engine.recentLog().takeLast(80).joinToString("\n")
+                val next = engine.snapshot()
+                val log = engine.recentLog().takeLast(80).joinToString("\n")
+                main.post {
+                    snap.value = next
+                    logText.value = log
+                }
             }
         }, 200, 250)
     }
@@ -88,7 +102,7 @@ class BancadaActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = Color(0xFF0C0D10))) {
+            BancadaTheme {
                 BancadaScreen(
                     onPip = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -117,6 +131,7 @@ private fun BancadaScreen(
     onShare: (String) -> Unit,
 ) {
     val snap by vm.snap
+    val bootError by vm.bootError
     val bike by vm.bike
     val page by vm.page
     val log by vm.logText
@@ -140,6 +155,9 @@ private fun BancadaScreen(
             color = Color(0xFF8E8A82),
             fontSize = 12.sp,
         )
+        if (!bootError.isNullOrBlank()) {
+            Text(bootError ?: "", color = Color(0xFFE23B2F), fontSize = 12.sp)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
             listOf("Painel", "Controles", "Diagnóstico").forEachIndexed { i, name ->
                 Button(
@@ -319,3 +337,16 @@ private fun localIpv4(): List<String> = runCatching {
         }
     }
 }.getOrDefault(emptyList())
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun BancadaTheme(content: @Composable () -> Unit) {
+    // Material3 expressive Button casts its shape to RoundedCornerShape.
+    // The plain MaterialTheme leaves that shape null and the activity dies
+    // on the first frame. The Vinalayan app uses the same expressive theme.
+    MaterialExpressiveTheme(
+        colorScheme = darkColorScheme(background = Color(0xFF0C0D10)),
+        motionScheme = MotionScheme.expressive(),
+        content = content,
+    )
+}

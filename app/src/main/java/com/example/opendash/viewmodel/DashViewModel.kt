@@ -1,12 +1,14 @@
 package com.example.opendash.viewmodel
 
 import android.app.Application
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.opendash.data.DashWallpaperFit
@@ -350,10 +352,22 @@ class DashViewModel(app: Application) : AndroidViewModel(app) {
     private fun connectLab() {
         userWantsConnection = true
         _ui.value = _ui.value.copy(errorMessage = null)
-        DashKeepAliveService.start(getApplication())
+        // The keep-alive service starts a location foreground service. Android 14+
+        // kills the process if that type is used before the rider grants location.
+        // The bench does not need the screen-off lock, so skip it until granted.
+        if (locationGranted()) {
+            DashKeepAliveService.start(getApplication())
+        }
         val lab = LabEndpointStore.read(getApplication())
         _ui.value = _ui.value.copy(ssid = lab.ssid)
         session.connect(lab.ssid, null, lab.endpoints())
+    }
+
+    private fun locationGranted(): Boolean {
+        val app = getApplication<Application>()
+        val fine = ContextCompat.checkSelfPermission(app, android.Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarse = ContextCompat.checkSelfPermission(app, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+        return fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED
     }
 
     fun disconnect() {
